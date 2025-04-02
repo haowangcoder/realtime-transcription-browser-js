@@ -59,6 +59,38 @@ header {
   word-wrap: break-word;
 }
 
+.transcription-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.transcription-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.transcription-box h3 {
+  font-size: 18px;
+  font-weight: 500;
+  color: #333;
+}
+
+.scroll-box {
+  height: 300px;
+  overflow-y: auto;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
 @media screen and (max-width: 768px) {
   header {
     height: 15vh;
@@ -85,5 +117,10 @@ header {
   .real-time-interface__message {
     font-size: 16px;
     padding: 0.8em;
+  }
+
+  .scroll-box {
+    height: 250px;
+    font-size: 14px;
   }
 }

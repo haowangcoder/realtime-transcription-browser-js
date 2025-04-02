@@ -2,12 +2,15 @@
 const buttonEl = document.getElementById("button");
 const messageEl = document.getElementById("message");
 const titleEl = document.getElementById("real-time-title");
+const originalTextEl = document.getElementById("original-text");
+const translatedTextEl = document.getElementById("translated-text");
 
 // set initial state of application variables
 messageEl.style.display = "none";
 let isRecording = false;
 let rt;
 let microphone;
+let lastProcessedIndex = 0;
 
 function createMicrophone() {
   let stream;
@@ -69,6 +72,45 @@ function mergeBuffers(lhs, rhs) {
   return mergedBuffer
 }
 
+// 处理翻译的函数
+async function translateText(text) {
+  try {
+    const response = await fetch("/translate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+    const data = await response.json();
+    return data.translation;
+  } catch (error) {
+    console.error("Translation error:", error);
+    return "翻译出错";
+  }
+}
+
+// 处理文本分割和翻译的函数
+async function processText(text) {
+  const sentences = text.split(/(?<=\.)\s+/);
+  let currentText = "";
+  
+  for (let i = lastProcessedIndex; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (sentence) {
+      currentText += sentence + " ";
+      if (sentence.endsWith(".")) {
+        const translation = await translateText(currentText.trim());
+        translatedTextEl.innerHTML += translation + "<br>";
+        translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
+        currentText = "";
+      }
+    }
+  }
+  
+  lastProcessedIndex = sentences.length;
+}
+
 // runs real-time transcription and handles global variables
 const run = async () => {
   if (isRecording) {
@@ -85,7 +127,7 @@ const run = async () => {
     microphone = createMicrophone();
     await microphone.requestPermission();
 
-    const response = await fetch("/token"); // get temp session token from server.js (backend)
+    const response = await fetch("/token");
     const data = await response.json();
 
     if (data.error) {
@@ -106,8 +148,11 @@ const run = async () => {
           msg += ` ${texts[key]}`;
         }
       }
-      messageEl.innerText = msg;
-      messageEl.scrollTop = messageEl.scrollHeight;
+      originalTextEl.innerText = msg;
+      originalTextEl.scrollTop = originalTextEl.scrollHeight;
+      
+      // 处理翻译
+      processText(msg);
     });
 
     rt.on("error", async (error) => {
