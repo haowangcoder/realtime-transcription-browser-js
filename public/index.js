@@ -20,13 +20,14 @@ function formatTime(timestamp) {
 
 // 添加格式化文本的函数
 function formatTranscript(text, confidence) {
-  const confidenceClass = confidence > 0.9 ? 'high-confidence' : 
+  const confidenceClass = confidence > 0.9 ? 'high-confidence' :
                          confidence > 0.7 ? 'medium-confidence' : 'low-confidence';
   return `<span class="${confidenceClass}">${text}</span>`;
 }
 
 // 添加已翻译文本的缓存
 const translatedCache = new Map();
+const translatedTexts = {};
 
 function createMicrophone() {
   let stream;
@@ -140,11 +141,45 @@ async function processText(text, timestamp) {
       currentText += trimmedSentence + " ";
       if (trimmedSentence.endsWith(".")) {
         const { translation } = await translateText(currentText.trim(), timestamp);
+        
+        // 如果时间戳不存在，创建一个数组
+        if (!translatedTexts[timestamp]) {
+          translatedTexts[timestamp] = [];
+        }
+        
+        // 添加新的翻译结果到数组中
+        translatedTexts[timestamp].push({
+          translation: translation,
+          timestamp: formatTime(timestamp)
+        });
+        
+        // 按时间戳排序并更新显示
+        updateTranslatedDisplay();
+        currentText = "";
+      }
+    }
+  }
+}
+
+// 更新翻译显示的函数
+function updateTranslatedDisplay() {
+  // 清空现有内容
+  translatedTextEl.innerHTML = '';
+  
+  // 获取所有时间戳并排序
+  const keys = Object.keys(translatedTexts);
+  keys.sort((a, b) => a - b);
+  
+  // 按顺序创建新的内容
+  for (const key of keys) {
+    if (translatedTexts[key]) {
+      // 遍历同一时间戳的所有翻译结果
+      translatedTexts[key].forEach(({ translation, timestamp }) => {
         const transcriptDiv = document.createElement('div');
         transcriptDiv.className = 'transcript-item translation-item';
         if (translation && translation.trim()) {
           transcriptDiv.innerHTML = `
-            <span class="timestamp">[${formatTime(timestamp)}]</span>
+            <span class="timestamp">[${timestamp}]</span>
             <span class="translation-text">${translation}</span>
           `;
         } else {
@@ -153,11 +188,12 @@ async function processText(text, timestamp) {
           `;
         }
         translatedTextEl.appendChild(transcriptDiv);
-        translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
-        currentText = "";
-      }
+      });
     }
   }
+  
+  // 自动滚动到底部
+  translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
 }
 
 // runs real-time transcription and handles global variables
