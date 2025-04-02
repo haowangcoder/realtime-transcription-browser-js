@@ -12,24 +12,22 @@ let lastProcessedIndex = 0;
 
 // 添加格式化时间的函数
 function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit',
-    hour12: false 
-  });
+  const minutes = Math.floor(timestamp / 60000);
+  const seconds = Math.floor((timestamp % 60000) / 1000);
+  const milliseconds = timestamp % 1000;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 }
 
 // 添加格式化文本的函数
 function formatTranscript(text, confidence) {
-  const confidenceClass = confidence > 0.9 ? 'high-confidence' : 
+  const confidenceClass = confidence > 0.9 ? 'high-confidence' :
                          confidence > 0.7 ? 'medium-confidence' : 'low-confidence';
   return `<span class="${confidenceClass}">${text}</span>`;
 }
 
 // 添加已翻译文本的缓存
 const translatedCache = new Map();
+const translatedTexts = {};
 
 function createMicrophone() {
   let stream;
@@ -129,6 +127,11 @@ async function translateText(text, timestamp) {
 
 // 处理文本分割和翻译的函数
 async function processText(text, timestamp) {
+  // 检查文本是否为空
+  if (!text || text.trim() === '') {
+    return;
+  }
+
   const sentences = text.split(/(?<=\.)\s+/);
   let currentText = "";
   
@@ -138,18 +141,67 @@ async function processText(text, timestamp) {
       currentText += trimmedSentence + " ";
       if (trimmedSentence.endsWith(".")) {
         const { translation } = await translateText(currentText.trim(), timestamp);
-        const transcriptDiv = document.createElement('div');
-        transcriptDiv.className = 'transcript-item translation-item';
-        transcriptDiv.innerHTML = `
-          <span class="timestamp">[${formatTime(timestamp)}]</span>
-          <span class="translation-text">${translation}</span>
-        `;
-        translatedTextEl.appendChild(transcriptDiv);
-        translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
+        
+        // 如果时间戳不存在，创建一个数组
+        if (!translatedTexts[timestamp]) {
+          translatedTexts[timestamp] = [];
+        }
+        
+        // 检查是否已存在相同时间戳的翻译
+        const existingTranslation = translatedTexts[timestamp].find(item => item.timestamp === formatTime(timestamp));
+        
+        if (existingTranslation) {
+          // 如果存在，将新的翻译内容添加到现有翻译中
+          existingTranslation.translation += " " + translation;
+        } else {
+          // 如果不存在，创建新的翻译条目
+          translatedTexts[timestamp].push({
+            translation: translation,
+            timestamp: formatTime(timestamp)
+          });
+        }
+        
+        // 按时间戳排序并更新显示
+        updateTranslatedDisplay();
         currentText = "";
       }
     }
   }
+}
+
+// 更新翻译显示的函数
+function updateTranslatedDisplay() {
+  // 清空现有内容
+  translatedTextEl.innerHTML = '';
+  
+  // 获取所有时间戳并排序
+  const keys = Object.keys(translatedTexts);
+  keys.sort((a, b) => a - b);
+  
+  // 按顺序创建新的内容
+  for (const key of keys) {
+    if (translatedTexts[key]) {
+      // 遍历同一时间戳的所有翻译结果
+      translatedTexts[key].forEach(({ translation, timestamp }) => {
+        const transcriptDiv = document.createElement('div');
+        transcriptDiv.className = 'transcript-item translation-item';
+        if (translation && translation.trim()) {
+          transcriptDiv.innerHTML = `
+            <span class="timestamp">[${timestamp}]</span>
+            <span class="translation-text">${translation}</span>
+          `;
+        } else {
+          transcriptDiv.innerHTML = `
+            <span class="translation-text">${translation}</span>
+          `;
+        }
+        translatedTextEl.appendChild(transcriptDiv);
+      });
+    }
+  }
+  
+  // 自动滚动到底部
+  translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
 }
 
 // runs real-time transcription and handles global variables
@@ -180,6 +232,11 @@ const run = async () => {
     // handle incoming messages to display transcription to the DOM
     const texts = {};
     rt.on("transcript", (message) => {
+      // 检查消息是否有效且包含实际文本内容
+      if (!message || !message.text || message.text.trim() === '') {
+        return;
+      }
+
       let msg = "";
       const timestamp = message.audio_start;
       texts[timestamp] = {
