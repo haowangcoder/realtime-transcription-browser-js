@@ -107,6 +107,7 @@ const run = async () => {
         }
       }
       messageEl.innerText = msg;
+      messageEl.scrollTop = messageEl.scrollHeight;
     });
 
     rt.on("error", async (error) => {
