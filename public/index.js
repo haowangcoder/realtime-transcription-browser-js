@@ -12,13 +12,10 @@ let lastProcessedIndex = 0;
 
 // 添加格式化时间的函数
 function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit',
-    hour12: false 
-  });
+  const minutes = Math.floor(timestamp / 60000);
+  const seconds = Math.floor((timestamp % 60000) / 1000);
+  const milliseconds = timestamp % 1000;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 }
 
 // 添加格式化文本的函数
@@ -129,6 +126,11 @@ async function translateText(text, timestamp) {
 
 // 处理文本分割和翻译的函数
 async function processText(text, timestamp) {
+  // 检查文本是否为空
+  if (!text || text.trim() === '') {
+    return;
+  }
+
   const sentences = text.split(/(?<=\.)\s+/);
   let currentText = "";
   
@@ -140,10 +142,16 @@ async function processText(text, timestamp) {
         const { translation } = await translateText(currentText.trim(), timestamp);
         const transcriptDiv = document.createElement('div');
         transcriptDiv.className = 'transcript-item translation-item';
-        transcriptDiv.innerHTML = `
-          <span class="timestamp">[${formatTime(timestamp)}]</span>
-          <span class="translation-text">${translation}</span>
-        `;
+        if (translation && translation.trim()) {
+          transcriptDiv.innerHTML = `
+            <span class="timestamp">[${formatTime(timestamp)}]</span>
+            <span class="translation-text">${translation}</span>
+          `;
+        } else {
+          transcriptDiv.innerHTML = `
+            <span class="translation-text">${translation}</span>
+          `;
+        }
         translatedTextEl.appendChild(transcriptDiv);
         translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
         currentText = "";
@@ -180,6 +188,11 @@ const run = async () => {
     // handle incoming messages to display transcription to the DOM
     const texts = {};
     rt.on("transcript", (message) => {
+      // 检查消息是否有效且包含实际文本内容
+      if (!message || !message.text || message.text.trim() === '') {
+        return;
+      }
+
       let msg = "";
       const timestamp = message.audio_start;
       texts[timestamp] = {
