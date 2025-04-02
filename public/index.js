@@ -1,13 +1,35 @@
 // required dom elements
 const buttonEl = document.getElementById("button");
-const messageEl = document.getElementById("message");
 const titleEl = document.getElementById("real-time-title");
+const originalTextEl = document.getElementById("original-text");
+const translatedTextEl = document.getElementById("translated-text");
 
 // set initial state of application variables
-messageEl.style.display = "none";
 let isRecording = false;
 let rt;
 let microphone;
+let lastProcessedIndex = 0;
+
+// 添加格式化时间的函数
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('zh-CN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit',
+    hour12: false 
+  });
+}
+
+// 添加格式化文本的函数
+function formatTranscript(text, confidence) {
+  const confidenceClass = confidence > 0.9 ? 'high-confidence' : 
+                         confidence > 0.7 ? 'medium-confidence' : 'low-confidence';
+  return `<span class="${confidenceClass}">${text}</span>`;
+}
+
+// 添加已翻译文本的缓存
+const translatedCache = new Map();
 
 function createMicrophone() {
   let stream;
@@ -69,6 +91,67 @@ function mergeBuffers(lhs, rhs) {
   return mergedBuffer
 }
 
+// 处理翻译的函数
+async function translateText(text, timestamp) {
+  try {
+    // 检查是否已经翻译过
+    if (translatedCache.has(text)) {
+      return {
+        translation: translatedCache.get(text),
+        timestamp: timestamp
+      };
+    }
+
+    const response = await fetch("/translate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+    const data = await response.json();
+    
+    // 存入缓存
+    translatedCache.set(text, data.translation);
+    
+    return {
+      translation: data.translation,
+      timestamp: timestamp
+    };
+  } catch (error) {
+    console.error("Translation error:", error);
+    return {
+      translation: "翻译出错",
+      timestamp: timestamp
+    };
+  }
+}
+
+// 处理文本分割和翻译的函数
+async function processText(text, timestamp) {
+  const sentences = text.split(/(?<=\.)\s+/);
+  let currentText = "";
+  
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    if (trimmedSentence) {
+      currentText += trimmedSentence + " ";
+      if (trimmedSentence.endsWith(".")) {
+        const { translation } = await translateText(currentText.trim(), timestamp);
+        const transcriptDiv = document.createElement('div');
+        transcriptDiv.className = 'transcript-item translation-item';
+        transcriptDiv.innerHTML = `
+          <span class="timestamp">[${formatTime(timestamp)}]</span>
+          <span class="translation-text">${translation}</span>
+        `;
+        translatedTextEl.appendChild(transcriptDiv);
+        translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
+        currentText = "";
+      }
+    }
+  }
+}
+
 // runs real-time transcription and handles global variables
 const run = async () => {
   if (isRecording) {
@@ -85,7 +168,7 @@ const run = async () => {
     microphone = createMicrophone();
     await microphone.requestPermission();
 
-    const response = await fetch("/token"); // get temp session token from server.js (backend)
+    const response = await fetch("/token");
     const data = await response.json();
 
     if (data.error) {
@@ -98,16 +181,39 @@ const run = async () => {
     const texts = {};
     rt.on("transcript", (message) => {
       let msg = "";
-      texts[message.audio_start] = message.text;
+      const timestamp = message.audio_start;
+      texts[timestamp] = {
+        text: message.text,
+        confidence: message.confidence,
+        timestamp: formatTime(timestamp)
+      };
+      
       const keys = Object.keys(texts);
       keys.sort((a, b) => a - b);
+      
+      // 清空现有内容
+      originalTextEl.innerHTML = '';
+      
+      // 创建新的内容
       for (const key of keys) {
         if (texts[key]) {
-          msg += ` ${texts[key]}`;
+          const { text, confidence, timestamp } = texts[key];
+          const formattedText = formatTranscript(text, confidence);
+          const transcriptDiv = document.createElement('div');
+          transcriptDiv.className = 'transcript-item';
+          transcriptDiv.innerHTML = `
+            <span class="timestamp">[${timestamp}]</span>
+            ${formattedText}
+          `;
+          originalTextEl.appendChild(transcriptDiv);
         }
       }
-      messageEl.innerText = msg;
-      messageEl.scrollTop = messageEl.scrollHeight;
+      
+      // 自动滚动到底部
+      originalTextEl.scrollTop = originalTextEl.scrollHeight;
+      
+      // 处理翻译
+      processText(message.text, timestamp);
     });
 
     rt.on("error", async (error) => {
@@ -122,7 +228,6 @@ const run = async () => {
 
     await rt.connect();
     // once socket is open, begin recording
-    messageEl.style.display = "";
 
     await microphone.startRecording((audioData) => {
       rt.sendAudio(audioData);
