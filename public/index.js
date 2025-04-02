@@ -28,6 +28,9 @@ function formatTranscript(text, confidence) {
   return `<span class="${confidenceClass}">${text}</span>`;
 }
 
+// 添加已翻译文本的缓存
+const translatedCache = new Map();
+
 function createMicrophone() {
   let stream;
   let audioContext;
@@ -89,8 +92,16 @@ function mergeBuffers(lhs, rhs) {
 }
 
 // 处理翻译的函数
-async function translateText(text) {
+async function translateText(text, timestamp) {
   try {
+    // 检查是否已经翻译过
+    if (translatedCache.has(text)) {
+      return {
+        translation: translatedCache.get(text),
+        timestamp: timestamp
+      };
+    }
+
     const response = await fetch("/translate", {
       method: "POST",
       headers: {
@@ -99,32 +110,46 @@ async function translateText(text) {
       body: JSON.stringify({ text }),
     });
     const data = await response.json();
-    return data.translation;
+    
+    // 存入缓存
+    translatedCache.set(text, data.translation);
+    
+    return {
+      translation: data.translation,
+      timestamp: timestamp
+    };
   } catch (error) {
     console.error("Translation error:", error);
-    return "翻译出错";
+    return {
+      translation: "翻译出错",
+      timestamp: timestamp
+    };
   }
 }
 
 // 处理文本分割和翻译的函数
-async function processText(text) {
+async function processText(text, timestamp) {
   const sentences = text.split(/(?<=\.)\s+/);
   let currentText = "";
   
-  for (let i = lastProcessedIndex; i < sentences.length; i++) {
-    const sentence = sentences[i].trim();
-    if (sentence) {
-      currentText += sentence + " ";
-      if (sentence.endsWith(".")) {
-        const translation = await translateText(currentText.trim());
-        translatedTextEl.innerHTML += translation + "<br>";
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    if (trimmedSentence) {
+      currentText += trimmedSentence + " ";
+      if (trimmedSentence.endsWith(".")) {
+        const { translation } = await translateText(currentText.trim(), timestamp);
+        const transcriptDiv = document.createElement('div');
+        transcriptDiv.className = 'transcript-item translation-item';
+        transcriptDiv.innerHTML = `
+          <span class="timestamp">[${formatTime(timestamp)}]</span>
+          <span class="translation-text">${translation}</span>
+        `;
+        translatedTextEl.appendChild(transcriptDiv);
         translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
         currentText = "";
       }
     }
   }
-  
-  lastProcessedIndex = sentences.length;
 }
 
 // runs real-time transcription and handles global variables
@@ -156,11 +181,11 @@ const run = async () => {
     const texts = {};
     rt.on("transcript", (message) => {
       let msg = "";
-      const timestamp = formatTime(message.audio_start);
-      texts[message.audio_start] = {
+      const timestamp = message.audio_start;
+      texts[timestamp] = {
         text: message.text,
         confidence: message.confidence,
-        timestamp: timestamp
+        timestamp: formatTime(timestamp)
       };
       
       const keys = Object.keys(texts);
@@ -188,7 +213,7 @@ const run = async () => {
       originalTextEl.scrollTop = originalTextEl.scrollHeight;
       
       // 处理翻译
-      processText(msg);
+      processText(message.text, timestamp);
     });
 
     rt.on("error", async (error) => {

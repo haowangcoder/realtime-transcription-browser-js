@@ -177,3 +177,31 @@ header {
   margin-top: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
+
+.translation-item {
+  background-color: #f0f7ff;
+  border-left: 4px solid #4299e1;
+}
+
+.translation-item:hover {
+  background-color: #e6f0ff;
+}
+
+.translation-text {
+  color: #2c5282;
+  font-weight: 500;
+}
+
+#translated-text .transcript-item {
+  margin: 8px 0;
+  padding: 12px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+#translated-text .timestamp {
+  color: #4a5568;
+  font-size: 0.9em;
+  margin-right: 8px;
+  font-weight: 500;
+}
