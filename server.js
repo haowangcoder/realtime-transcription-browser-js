@@ -24,6 +24,10 @@ app.get("/token", async (_req, res) => {
 app.post("/translate", async (req, res) => {
   try {
     const { text } = req.body;
+    if (!text || text.trim() === '') {
+      return res.status(400).json({ error: "Empty text" });
+    }
+    
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -32,7 +36,9 @@ app.post("/translate", async (req, res) => {
           content: `Translate the following into chinese and only show me the translated content: ${text}`,
         },
       ],
+      temperature: 0.3
     });
+    
     res.json({ translation: completion.choices[0].message.content });
   } catch (error) {
     console.error("Translation error:", error);
