@@ -1,12 +1,10 @@
 // required dom elements
 const buttonEl = document.getElementById("button");
-const messageEl = document.getElementById("message");
 const titleEl = document.getElementById("real-time-title");
 const originalTextEl = document.getElementById("original-text");
 const translatedTextEl = document.getElementById("translated-text");
 
 // set initial state of application variables
-messageEl.style.display = "none";
 let isRecording = false;
 let rt;
 let microphone;
@@ -167,7 +165,6 @@ const run = async () => {
 
     await rt.connect();
     // once socket is open, begin recording
-    messageEl.style.display = "";
 
     await microphone.startRecording((audioData) => {
       rt.sendAudio(audioData);
