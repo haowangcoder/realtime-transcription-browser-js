@@ -10,6 +10,24 @@ let rt;
 let microphone;
 let lastProcessedIndex = 0;
 
+// 添加格式化时间的函数
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('zh-CN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit',
+    hour12: false 
+  });
+}
+
+// 添加格式化文本的函数
+function formatTranscript(text, confidence) {
+  const confidenceClass = confidence > 0.9 ? 'high-confidence' : 
+                         confidence > 0.7 ? 'medium-confidence' : 'low-confidence';
+  return `<span class="${confidenceClass}">${text}</span>`;
+}
+
 function createMicrophone() {
   let stream;
   let audioContext;
@@ -138,15 +156,35 @@ const run = async () => {
     const texts = {};
     rt.on("transcript", (message) => {
       let msg = "";
-      texts[message.audio_start] = message.text;
+      const timestamp = formatTime(message.audio_start);
+      texts[message.audio_start] = {
+        text: message.text,
+        confidence: message.confidence,
+        timestamp: timestamp
+      };
+      
       const keys = Object.keys(texts);
       keys.sort((a, b) => a - b);
+      
+      // 清空现有内容
+      originalTextEl.innerHTML = '';
+      
+      // 创建新的内容
       for (const key of keys) {
         if (texts[key]) {
-          msg += ` ${texts[key]}`;
+          const { text, confidence, timestamp } = texts[key];
+          const formattedText = formatTranscript(text, confidence);
+          const transcriptDiv = document.createElement('div');
+          transcriptDiv.className = 'transcript-item';
+          transcriptDiv.innerHTML = `
+            <span class="timestamp">[${timestamp}]</span>
+            ${formattedText}
+          `;
+          originalTextEl.appendChild(transcriptDiv);
         }
       }
-      originalTextEl.innerText = msg;
+      
+      // 自动滚动到底部
       originalTextEl.scrollTop = originalTextEl.scrollHeight;
       
       // 处理翻译
