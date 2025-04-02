@@ -147,11 +147,19 @@ async function processText(text, timestamp) {
           translatedTexts[timestamp] = [];
         }
         
-        // 添加新的翻译结果到数组中
-        translatedTexts[timestamp].push({
-          translation: translation,
-          timestamp: formatTime(timestamp)
-        });
+        // 检查是否已存在相同时间戳的翻译
+        const existingTranslation = translatedTexts[timestamp].find(item => item.timestamp === formatTime(timestamp));
+        
+        if (existingTranslation) {
+          // 如果存在，将新的翻译内容添加到现有翻译中
+          existingTranslation.translation += " " + translation;
+        } else {
+          // 如果不存在，创建新的翻译条目
+          translatedTexts[timestamp].push({
+            translation: translation,
+            timestamp: formatTime(timestamp)
+          });
+        }
         
         // 按时间戳排序并更新显示
         updateTranslatedDisplay();
