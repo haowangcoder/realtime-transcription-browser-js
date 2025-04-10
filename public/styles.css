@@ -205,3 +205,23 @@ header {
   margin-right: 8px;
   font-weight: 500;
 }
+
+/* 添加按钮组样式 */
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.export-button {
+  background: #38a169;
+}
+
+.export-button:hover {
+  background: #2f855a;
+}
+
+.export-button:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
