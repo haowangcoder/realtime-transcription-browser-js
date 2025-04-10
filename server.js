@@ -21,7 +21,7 @@ app.use(
 app.use(express.json());
 
 app.get("/token", async (_req, res) => {
-  const token = await aai.realtime.createTemporaryToken({ expires_in: 3600 });
+  const token = await aai.realtime.createTemporaryToken({ expires_in: 14400 });
   res.json({ token });
 });
 
