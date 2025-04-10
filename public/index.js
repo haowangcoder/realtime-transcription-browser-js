@@ -3,12 +3,14 @@ const buttonEl = document.getElementById("button");
 const titleEl = document.getElementById("real-time-title");
 const originalTextEl = document.getElementById("original-text");
 const translatedTextEl = document.getElementById("translated-text");
+const exportButtonEl = document.getElementById("export-button");
 
 // set initial state of application variables
 let isRecording = false;
 let rt;
 let microphone;
 let lastProcessedIndex = 0;
+let texts = {};
 
 // 添加格式化时间的函数
 function formatTime(timestamp) {
@@ -204,6 +206,69 @@ function updateTranslatedDisplay() {
   translatedTextEl.scrollTop = translatedTextEl.scrollHeight;
 }
 
+// 添加导出功能
+function exportText() {
+  // 获取原文和翻译内容
+  const originalContent = formatOriginalContent();
+  const translatedContent = formatTranslatedContent();
+  
+  // 创建完整的导出内容
+  const fullContent = `原文：\n\n${originalContent}\n\n翻译：\n\n${translatedContent}`;
+  
+  // 创建Blob对象
+  const blob = new Blob([fullContent], { type: 'text/plain;charset=utf-8' });
+  
+  // 创建下载链接
+  const url = URL.createObjectURL(blob);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `transcription-${timestamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  
+  // 清理
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+}
+
+// 格式化原文内容
+function formatOriginalContent() {
+  let content = '';
+  const keys = Object.keys(texts || {});
+  keys.sort((a, b) => a - b);
+  
+  for (const key of keys) {
+    if (texts[key]) {
+      const { text, timestamp } = texts[key];
+      content += `[${timestamp}] ${text}\n`;
+    }
+  }
+  
+  return content;
+}
+
+// 格式化翻译内容
+function formatTranslatedContent() {
+  let content = '';
+  const keys = Object.keys(translatedTexts);
+  keys.sort((a, b) => a - b);
+  
+  for (const key of keys) {
+    if (translatedTexts[key]) {
+      translatedTexts[key].forEach(({ translation, timestamp }) => {
+        if (translation && translation.trim()) {
+          content += `[${timestamp}] ${translation}\n`;
+        }
+      });
+    }
+  }
+  
+  return content;
+}
+
 // runs real-time transcription and handles global variables
 const run = async () => {
   if (isRecording) {
@@ -230,7 +295,6 @@ const run = async () => {
 
     rt = new assemblyai.RealtimeService({ token: data.token });
     // handle incoming messages to display transcription to the DOM
-    const texts = {};
     rt.on("transcript", (message) => {
       // 检查消息是否有效且包含实际文本内容
       if (!message || !message.text || message.text.trim() === '') {
@@ -299,4 +363,5 @@ const run = async () => {
 };
 
 buttonEl.addEventListener("click", () => run());
+exportButtonEl.addEventListener("click", exportText);
 
